@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listen } from "@/lib/speech";
 import { SOURCES, type SourceId } from "@/lib/corpus";
 
 type Verdict = "ok" | "caution" | "flag";
@@ -63,9 +64,14 @@ export default function Home() {
   const [qText, setQText] = useState(DEFAULT_QUESTIONS);
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState("");
+  const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState("");
+  const [speechMsg, setSpeechMsg] = useState("");
 
   const nextId = useRef(1);
   const lastFinal = useRef("");
+  const stopListening = useRef<(() => void) | null>(null);
+  const finalHandler = useRef<(text: string) => void>(() => {});
 
   const checklist = splitLines(qText).map((text, i) => ({ id: `q${i + 1}`, text }));
   const hit = new Set(lines.flatMap((l) => l.result?.checklist_hits ?? []));
@@ -97,6 +103,30 @@ export default function Home() {
     } catch {
       patch({ status: "error" });
     }
+  }
+
+  useEffect(() => {
+    finalHandler.current = handleFinal;
+  });
+  useEffect(() => () => stopListening.current?.(), []);
+
+  function toggleListening() {
+    if (listening) {
+      stopListening.current?.();
+      stopListening.current = null;
+      setInterim("");
+      return;
+    }
+    setSpeechMsg("");
+    stopListening.current = listen(
+      (t) => finalHandler.current(t),
+      setInterim,
+      (state, msg) => {
+        setListening(state === "on");
+        if (state === "error") setSpeechMsg(msg ?? "Microphone problem.");
+        if (state !== "on") setInterim("");
+      },
+    );
   }
 
   function submitTyped(e: React.FormEvent) {
@@ -166,6 +196,20 @@ export default function Home() {
         Before we start: I use a tool that checks my questions are fair. It doesn&apos;t record you.
       </p>
 
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={toggleListening}
+          className={`flex items-center gap-3 rounded-full px-6 py-3 text-lg font-medium text-white ${
+            listening ? "bg-neutral-800 hover:bg-neutral-900" : "bg-indigo-600 hover:bg-indigo-700"
+          }`}
+        >
+          {listening && <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />}
+          {listening ? "Stop" : "Start"}
+        </button>
+        {speechMsg && <p className="text-sm text-neutral-600">{speechMsg}</p>}
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2">
         <section aria-label="Transcript">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
@@ -180,6 +224,7 @@ export default function Home() {
               </li>
             ))}
           </ul>
+          {interim && <p className="mt-2 text-lg italic text-neutral-400">{interim}</p>}
           <form onSubmit={submitTyped} className="mt-4 flex gap-2">
             <input
               value={typed}
