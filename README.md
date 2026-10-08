@@ -1,3 +1,11 @@
+# Earpiece
+
+Earpiece helps small-business hirers run fair, lawful interviews by catching questions that touch NZ's prohibited grounds as they're asked and suggesting a job-related way to ask instead.
+
+**The one feature:** the interviewer says a question out loud. Within ~2s a card shows the ground, a one-line why, a rephrase tied to the role's real requirements, and a source link. Job-related questions stay clear.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
