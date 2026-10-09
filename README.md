@@ -9,7 +9,7 @@ A live interview coach for NZ small-business hirers. It catches questions that t
 ## Links
 
 - Video: [TODO]
-- Live: [TODO] (use Chrome and allow the mic, or use the type box)
+- Live: https://earpiece-rho.vercel.app (use Chrome and allow the mic, or use the type box)
 
 ## Run it
 
