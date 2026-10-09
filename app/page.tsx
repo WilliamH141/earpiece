@@ -286,48 +286,128 @@ export default function Home() {
   const flagCount = lines.filter((l) => l.status === "flag").length;
   const cautionCount = lines.filter((l) => l.status === "caution").length;
 
+  const modeTabs: [Mode, string][] = [
+    ["standby", "Standby"],
+    ["live", "Live"],
+    ["ended", "Summary"],
+  ];
+
   return (
-    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 py-3 md:h-screen md:overflow-hidden sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <div>
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight text-indigo-600">Earpiece</h1>
-          <p className="text-sm text-neutral-600">
+    <div className="relative flex min-h-screen flex-col bg-white text-ink md:h-screen md:overflow-hidden">
+      <div className="bg-[#f0f0f0]">
+        <div className="mx-auto flex h-10 w-full max-w-[1440px] items-center justify-between px-4 text-sm sm:px-6">
+          <nav className="flex items-center gap-5" aria-label="Interview state">
+            {modeTabs.map(([m, label]) => (
+              <span
+                key={m}
+                aria-current={mode === m ? "step" : undefined}
+                className={
+                  mode === m
+                    ? "font-medium text-brand underline decoration-2 underline-offset-[6px]"
+                    : "text-muted"
+                }
+              >
+                {label}
+              </span>
+            ))}
+          </nav>
+          <button
+            type="button"
+            onClick={() => setSetupOpen((o) => !o)}
+            aria-expanded={setupOpen}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 font-medium hover:bg-black/5"
+          >
+            Role: {roleTitle || "Untitled"}
+            <Icon name="chevron" className={`h-4 w-4 transition-transform ${setupOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {setupOpen && (
+        <section
+          aria-label="Setup"
+          className="absolute right-4 top-11 z-30 grid w-[min(94vw,760px)] gap-4 rounded-3xl bg-white p-5 shadow-2xl ring-1 ring-black/5 sm:right-6 sm:grid-cols-3"
+        >
+          <label className="block text-sm font-semibold">
+            Role title
+            <input
+              value={roleTitle}
+              onChange={(e) => setRoleTitle(e.target.value)}
+              className="mt-1.5 w-full rounded-2xl border border-hair bg-white px-4 py-2.5 font-normal outline-none focus:border-brand"
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Requirements (one per line)
+            <textarea
+              value={reqText}
+              onChange={(e) => setReqText(e.target.value)}
+              rows={7}
+              className="mt-1.5 w-full rounded-2xl border border-hair bg-white px-4 py-2.5 font-normal outline-none focus:border-brand"
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Core questions (one per line)
+            <textarea
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
+              rows={7}
+              className="mt-1.5 w-full rounded-2xl border border-hair bg-white px-4 py-2.5 font-normal outline-none focus:border-brand"
+            />
+          </label>
+        </section>
+      )}
+
+      <header className="rounded-b-[2rem] bg-white shadow-[0_10px_28px_-14px_rgba(20,18,27,0.22)]">
+        <div className="mx-auto grid w-full max-w-[1440px] items-center gap-2 px-4 py-4 sm:px-6 md:grid-cols-[1fr_auto_1fr]">
+          <p className="max-w-[340px] text-sm leading-snug text-muted">
             Coaches the interviewer. Never scores the candidate. Nothing is saved.
           </p>
+          <h1 className="text-5xl font-black leading-none tracking-tighter text-brand">Earpiece</h1>
+          <p className="max-w-[340px] text-sm leading-snug text-muted md:justify-self-end md:text-right">
+            Before we start: I use a tool that checks my questions are fair. It doesn&apos;t record you.
+          </p>
         </div>
+      </header>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {mode === "standby" && micOn && (
-            <p className="flex items-center gap-2 text-lg font-medium">
-              <span className="h-3 w-3 animate-pulse rounded-full bg-indigo-500" />
-              Say “Start the interview”
+      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col gap-4 px-4 pt-5 sm:px-6">
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-4 rounded-full bg-white py-2 pl-3 pr-2 shadow-[0_2px_14px_rgba(20,18,27,0.10)] ring-1 ring-black/10"
+        >
+          <span
+            className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+              mode === "live" ? "bg-flag/10 text-flag" : "bg-brand-soft text-brand"
+            }`}
+          >
+            {micOn && mode !== "ended" && (
+              <span
+                className={`absolute inset-0 animate-ping rounded-full ${mode === "live" ? "bg-flag/20" : "bg-brand/20"}`}
+              />
+            )}
+            <Icon name="mic" className="relative h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xl font-semibold">
+              {mode === "standby" && (micOn ? "Say “Start the interview”" : "Microphone is off")}
+              {mode === "live" && "Live. Say “End the interview” to finish"}
+              {mode === "ended" && "Interview ended. Say “Start over” to reset"}
             </p>
-          )}
-          {mode === "live" && (
-            <p className="flex items-center gap-2 text-lg font-medium">
-              <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
-              Live. Say “End the interview” to finish
-            </p>
-          )}
-          {mode === "ended" && (
-            <p className="text-lg font-medium">Interview ended. Say “Start over” to reset</p>
-          )}
+            {speechMsg && <p className="truncate text-sm text-muted">{speechMsg}</p>}
+          </div>
           {!micOn && !unsupported && (
             <button
               type="button"
               onClick={startMic}
-              className="rounded-full bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700"
+              className="rounded-full border-[1.5px] border-brand px-6 py-3 text-lg font-semibold text-brand hover:bg-brand-soft"
             >
               Enable mic
             </button>
           )}
-          {speechMsg && <p className="text-sm text-neutral-600">{speechMsg}</p>}
-
           {mode === "standby" && (
             <button
               type="button"
               onClick={startInterview}
-              className="rounded-full border border-neutral-300 px-5 py-2 font-medium hover:bg-neutral-50"
+              className="rounded-full bg-brand px-7 py-3 text-lg font-semibold text-white hover:bg-brand-dark"
             >
               Start interview
             </button>
@@ -336,7 +416,7 @@ export default function Home() {
             <button
               type="button"
               onClick={endInterview}
-              className="rounded-full bg-neutral-800 px-5 py-2 font-medium text-white hover:bg-neutral-900"
+              className="rounded-full bg-ink px-7 py-3 text-lg font-semibold text-white hover:bg-black"
             >
               End interview
             </button>
@@ -345,208 +425,257 @@ export default function Home() {
             <button
               type="button"
               onClick={resetAll}
-              className="rounded-full bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700"
+              className="rounded-full bg-brand px-7 py-3 text-lg font-semibold text-white hover:bg-brand-dark"
             >
               Reset
             </button>
           )}
         </div>
-      </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-600">
-        <p>Before we start: I use a tool that checks my questions are fair. It doesn&apos;t record you.</p>
-        <button
-          type="button"
-          onClick={() => setSetupOpen((o) => !o)}
-          className="rounded-lg border border-neutral-200 px-3 py-1 hover:bg-neutral-50"
-          aria-expanded={setupOpen}
-        >
-          Setup: {roleTitle || "Untitled role"} · {setupOpen ? "Hide" : "Show"}
-        </button>
-      </div>
+        <div className="flex items-center gap-3 overflow-x-auto pb-1" aria-label="Core questions">
+          <span className="shrink-0 text-sm font-semibold uppercase tracking-wide text-muted">Core questions</span>
+          {checklist.map((c) => {
+            const done = hit.has(c.id);
+            return (
+              <span
+                key={c.id}
+                className={`flex shrink-0 items-center gap-2 rounded-full border-[1.5px] px-4 py-2 text-base font-medium ${
+                  done ? "border-brand bg-brand text-white" : "border-[#525252] text-ink"
+                }`}
+              >
+                {done ? (
+                  <Icon name="check" className="h-4 w-4" />
+                ) : (
+                  <Icon name="circle" className="h-4 w-4 text-muted" />
+                )}
+                {c.text}
+              </span>
+            );
+          })}
+        </div>
 
-      {setupOpen && (
-        <section className="grid gap-3 rounded-xl border border-neutral-200 p-3 sm:grid-cols-3">
-          <label className="block text-sm font-medium">
-            Role title
-            <input
-              value={roleTitle}
-              onChange={(e) => setRoleTitle(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Requirements (one per line)
-            <textarea
-              value={reqText}
-              onChange={(e) => setReqText(e.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Core questions (one per line)
-            <textarea
-              value={qText}
-              onChange={(e) => setQText(e.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
-            />
-          </label>
-        </section>
-      )}
-
-      <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-2">
-        <section aria-label="Transcript" className="flex min-h-0 flex-col">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Transcript</h2>
-          <div className="min-h-[200px] flex-1 overflow-y-auto md:min-h-0">
-            <ul className="space-y-2">
-              {lines.map((l) => (
-                <li key={l.id} className="flex items-start gap-3 text-lg">
-                  <span className={`mt-2.5 h-3 w-3 shrink-0 rounded-full ${DOT[l.status]}`} />
-                  <span className="flex-1">
-                    {l.text}
-                    {l.status === "error" && (
-                      <span className="ml-2 inline-block rounded-full bg-neutral-100 px-3 py-0.5 align-middle text-sm text-neutral-500">
-                        Couldn&apos;t check that one
-                      </span>
-                    )}
-                  </span>
-                  {l.ms != null && <span className="mt-1.5 text-xs text-neutral-400">{l.ms} ms</span>}
-                </li>
-              ))}
-            </ul>
-            {interim && (
-              <p className="mt-2 text-lg italic text-neutral-400">
-                {mode === "standby" ? "Heard: " : ""}
-                {interim}
-              </p>
-            )}
-            <div ref={transcriptEnd} />
-          </div>
-          <p className="mt-2 truncate font-mono text-xs text-neutral-400" aria-label="Command debug">
-            {debug ? `last command: ${debug.outcome}: "${debug.text}"` : "last command: none yet"}
-          </p>
-          <p className="mt-1 truncate font-mono text-xs text-neutral-400" aria-label="Mic debug">
-            {`mic: ${micEvents.length ? micEvents.join(" > ") : "no events yet"}`}
-          </p>
-          <form onSubmit={submitTyped} className="mt-2 flex gap-2">
-            <input
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              placeholder="Type a line to test"
-              className="flex-1 rounded-lg border border-neutral-300 px-3 py-2"
-            />
-            <button
-              type="submit"
-              className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
-            >
-              Send
-            </button>
-          </form>
-        </section>
-
-        <section aria-label="Coaching" className="flex min-h-0 flex-col gap-3">
-          {mode === "ended" && (
-            <div aria-label="Summary" className="rounded-xl border border-neutral-200 p-3">
-              <h2 className="text-lg font-semibold">Interview summary</h2>
-              <p className="mt-1 text-lg">
-                <span className="font-semibold text-red-600">{flagCount}</span> flagged ·{" "}
-                <span className="font-semibold text-amber-600">{cautionCount}</span> caution
-              </p>
-              <p>
-                Core questions: {checklist.length - missed.length} of {checklist.length}
-              </p>
-              {missed.length > 0 && (
-                <p className="text-sm text-neutral-600">Missed: {missed.map((c) => c.text).join(", ")}</p>
-              )}
-              <p className="mt-1 text-sm text-neutral-500">Nothing was saved.</p>
+        <div className="grid min-h-0 flex-1 gap-6 pb-4 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+          <section
+            aria-label="Transcript"
+            className="flex min-h-[280px] flex-col rounded-[1.75rem] bg-white p-5 shadow-[0_6px_28px_-8px_rgba(20,18,27,0.18)] ring-1 ring-black/5 md:min-h-0"
+          >
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="text-xl font-semibold">Transcript</h2>
+              <span className="text-sm text-muted">
+                {lines.length} {lines.length === 1 ? "line" : "lines"}
+              </span>
             </div>
-          )}
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <ul className="space-y-3">
+                {lines.map((l) => (
+                  <li key={l.id} className="flex items-start gap-3 text-xl leading-snug">
+                    <span className={`mt-2 h-3.5 w-3.5 shrink-0 rounded-full ${DOT[l.status]}`} />
+                    <span className="flex-1">
+                      {l.text}
+                      {l.status === "error" && (
+                        <span className="ml-2 inline-block rounded-full bg-neutral-100 px-3 py-0.5 align-middle text-sm text-muted">
+                          Couldn&apos;t check that one
+                        </span>
+                      )}
+                    </span>
+                    {l.ms != null && <span className="mt-1.5 text-xs text-muted/70">{l.ms} ms</span>}
+                  </li>
+                ))}
+              </ul>
+              {interim && (
+                <p className="mt-3 text-xl italic text-muted/70">
+                  {mode === "standby" ? "Heard: " : ""}
+                  {interim}
+                </p>
+              )}
+              <div ref={transcriptEnd} />
+            </div>
+            <p className="mt-3 truncate font-mono text-xs text-muted/70" aria-label="Command debug">
+              {debug ? `last command: ${debug.outcome}: "${debug.text}"` : "last command: none yet"}
+            </p>
+            <p className="mt-0.5 truncate font-mono text-xs text-muted/70" aria-label="Mic debug">
+              {`mic: ${micEvents.length ? micEvents.join(" > ") : "no events yet"}`}
+            </p>
+            <form
+              onSubmit={submitTyped}
+              className="mt-3 flex items-center gap-2 rounded-full bg-white py-1.5 pl-5 pr-1.5 ring-1 ring-black/15 focus-within:ring-2 focus-within:ring-brand"
+            >
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder="Type a line to test"
+                className="min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-muted/70"
+              />
+              <button
+                type="submit"
+                className="flex items-center gap-2 rounded-full bg-brand px-6 py-2.5 text-lg font-semibold text-white hover:bg-brand-dark"
+              >
+                Send
+                <Icon name="arrow" className="h-5 w-5" />
+              </button>
+            </form>
+          </section>
 
-          <div className="flex min-h-[160px] flex-1 flex-col md:min-h-0">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Coaching</h2>
-            <ul ref={cardsBox} className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          <section
+            aria-label="Coaching"
+            className="flex min-h-[280px] flex-col rounded-[1.75rem] bg-white p-5 shadow-[0_6px_28px_-8px_rgba(20,18,27,0.18)] ring-1 ring-black/5 md:min-h-0"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Coaching</h2>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span className="flex items-center gap-1.5 rounded-full border border-hair px-3 py-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-flag" />
+                  {flagCount} flagged
+                </span>
+                <span className="flex items-center gap-1.5 rounded-full border border-hair px-3 py-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-caution" />
+                  {cautionCount} caution
+                </span>
+              </div>
+            </div>
+
+            {mode === "ended" && (
+              <div aria-label="Summary" className="mb-4 rounded-2xl bg-brand-soft p-5">
+                <h3 className="text-lg font-semibold">Interview summary</h3>
+                <div className="mt-2 grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-4xl font-bold text-flag">{flagCount}</p>
+                    <p className="text-sm text-muted">flagged</p>
+                  </div>
+                  <div>
+                    <p className="text-4xl font-bold text-amber-600">{cautionCount}</p>
+                    <p className="text-sm text-muted">caution</p>
+                  </div>
+                  <div>
+                    <p className="text-4xl font-bold text-brand">
+                      {checklist.length - missed.length}
+                      <span className="text-2xl text-muted"> of {checklist.length}</span>
+                    </p>
+                    <p className="text-sm text-muted">Core questions</p>
+                  </div>
+                </div>
+                {missed.length > 0 && (
+                  <p className="mt-3 text-sm text-muted">
+                    Missed: {missed.map((c) => c.text).join(", ")}
+                  </p>
+                )}
+                <p className="mt-1 text-sm font-medium text-muted">Nothing was saved.</p>
+              </div>
+            )}
+
+            {cards.length === 0 && mode !== "ended" && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-muted">
+                <Icon name="shield" className="h-12 w-12 text-brand/50" />
+                <p className="max-w-xs text-lg">
+                  Questions that touch a protected ground will show up here, with a better way to ask.
+                </p>
+              </div>
+            )}
+
+            <ul ref={cardsBox} className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               {cards.map((l) => {
                 const r = l.result!;
+                const flag = r.verdict === "flag";
                 const src = SOURCES[r.source_id as SourceId];
                 return (
                   <li
                     key={l.id}
-                    className={`rounded-xl border-2 p-4 ${r.verdict === "flag" ? "border-red-500" : "border-amber-500"}`}
+                    className={`rounded-2xl border-2 p-5 ${flag ? "border-flag bg-[#fff6f7]" : "border-caution bg-[#fffaf0]"}`}
                   >
-                    <p
-                      className={`text-sm font-semibold uppercase tracking-wide ${
-                        r.verdict === "flag" ? "text-red-600" : "text-amber-600"
-                      }`}
-                    >
-                      {GROUND_LABELS[r.ground] ?? r.ground}
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className={`rounded-full px-4 py-1 text-sm font-semibold text-white ${flag ? "bg-flag" : "bg-caution"}`}
+                      >
+                        {GROUND_LABELS[r.ground] ?? r.ground}
+                      </span>
+                      <span className={`text-xs font-bold uppercase tracking-wider ${flag ? "text-flag" : "text-amber-600"}`}>
+                        {flag ? "Flag" : "Caution"}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-lg italic text-muted">&ldquo;{l.text}&rdquo;</p>
+                    <p className="mt-2 flex items-start gap-3 text-lg">
+                      <Icon name="info" className="mt-1 h-5 w-5 shrink-0 text-muted" />
+                      {r.why}
                     </p>
-                    <p className="mt-1 text-neutral-500">&ldquo;{l.text}&rdquo;</p>
-                    <p className="mt-1">{r.why}</p>
                     {r.rephrase && (
-                      <p className="mt-2 text-sm font-medium text-neutral-500">
-                        Try instead:
-                        <span className="mt-1 block text-2xl font-semibold leading-snug text-neutral-900">
-                          {r.rephrase}
-                        </span>
-                      </p>
+                      <div className="mt-4">
+                        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                          <Icon name="chat" className="h-4 w-4" />
+                          Try instead
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold leading-tight tracking-tight">{r.rephrase}</p>
+                      </div>
                     )}
                     {src && (
-                      <a
-                        href={src.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block text-sm text-indigo-600 underline"
-                      >
-                        {src.title}
-                      </a>
-                    )}
-                    {src && expandedId === l.id && (
-                      <div className="mt-2 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
-                        <p className="font-medium">{src.title}</p>
-                        <p className="mt-1">{src.summary}</p>
-                        <p className="mt-1 break-all text-neutral-500">{src.url}</p>
+                      <div className="mt-4 border-t border-hair pt-3">
+                        <a
+                          href={src.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 text-base font-medium text-brand underline underline-offset-4"
+                        >
+                          <Icon name="doc" className="h-5 w-5" />
+                          {src.title}
+                        </a>
+                        {expandedId === l.id && (
+                          <div className="mt-3 rounded-xl bg-brand-soft p-4 text-base">
+                            <p className="font-semibold">{src.title}</p>
+                            <p className="mt-1 text-muted">{src.summary}</p>
+                            <p className="mt-1 break-all text-sm text-muted/80">{src.url}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </li>
                 );
               })}
             </ul>
-          </div>
-
-          <div>
-            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-500">Core questions</h2>
-            <ul className="space-y-1">
-              {checklist.map((c) => (
-                <li key={c.id} className="flex items-center gap-2">
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
-                      hit.has(c.id) ? "border-indigo-600 bg-indigo-600 text-white" : "border-neutral-300"
-                    }`}
-                  >
-                    {hit.has(c.id) ? "✓" : ""}
-                  </span>
-                  <span className={hit.has(c.id) ? "text-neutral-400 line-through" : ""}>{c.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
 
-      <footer className="border-t border-neutral-200 pt-2 text-sm text-neutral-500">
+      <footer className="mx-auto w-full max-w-[1440px] border-t border-hair px-4 py-2 text-sm text-muted sm:px-6">
         Not legal advice. Sources: HRC A-Z Pre-Employment Guide, Employment NZ.
       </footer>
 
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-neutral-900 px-5 py-2 text-white shadow-lg"
+          className="fixed bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-6 py-3 text-lg font-medium text-white shadow-2xl"
         >
+          <Icon name="check" className="h-5 w-5 text-[#b9a4ff]" />
           {toast}
         </div>
       )}
-    </main>
+    </div>
+  );
+}
+
+const ICONS: Record<string, string> = {
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z M19 11a7 7 0 0 1-14 0 M12 18v3",
+  check: "M5 12.5l4.5 4.5L19 7",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 11v5 M12 8h.01",
+  chat: "M20 12a8 8 0 0 1-11.7 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z",
+  doc: "M7 3h7l5 5v13H7Z M14 3v5h5 M10 13h6 M10 17h4",
+  arrow: "M5 12h14 M13 6l6 6-6 6",
+  chevron: "M6 9l6 6 6-6",
+  circle: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z",
+  shield: "M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6Z M9 12l2 2 4-4",
+};
+
+function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d={ICONS[name]} />
+    </svg>
   );
 }

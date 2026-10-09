@@ -2,12 +2,20 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #14121b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: #7e5bf6;
+  --color-brand-dark: #6a45ea;
+  --color-brand-soft: #f3efff;
+  --color-ink: #14121b;
+  --color-muted: #63606e;
+  --color-hair: #eeeeee;
+  --color-flag: #e5384b;
+  --color-caution: #f59e0b;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
