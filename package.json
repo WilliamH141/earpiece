@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "eval": "tsx --env-file=.env.local eval/run.ts",
+    "eval:shape": "tsx eval/shape-check.ts"
   },
   "dependencies": {
     "@google/genai": "^2.28.0",
