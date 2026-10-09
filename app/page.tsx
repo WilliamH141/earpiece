@@ -219,7 +219,14 @@ export default function Home() {
             {lines.map((l) => (
               <li key={l.id} className="flex items-start gap-3 text-lg">
                 <span className={`mt-2.5 h-3 w-3 shrink-0 rounded-full ${DOT[l.status]}`} />
-                <span className="flex-1">{l.text}</span>
+                <span className="flex-1">
+                  {l.text}
+                  {l.status === "error" && (
+                    <span className="ml-2 inline-block rounded-full bg-neutral-100 px-3 py-0.5 align-middle text-sm text-neutral-500">
+                      Couldn&apos;t check that one
+                    </span>
+                  )}
+                </span>
                 {l.ms != null && <span className="mt-1.5 text-xs text-neutral-400">{l.ms} ms</span>}
               </li>
             ))}
@@ -287,12 +294,6 @@ export default function Home() {
               );
             })}
           </ul>
-          {lines.some((l) => l.status === "error") && (
-            <p className="mt-3 inline-block rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-500">
-              Couldn&apos;t check that one
-            </p>
-          )}
-
           <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
             Core questions
           </h2>
