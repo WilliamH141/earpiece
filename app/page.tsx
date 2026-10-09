@@ -70,6 +70,23 @@ function parseCommand(text: string): Command {
   return null;
 }
 
+// Wake-word-free commands. The WHOLE line must be the phrase, so normal sentences that
+// happen to contain "end the interview" are never treated as commands.
+const POLITE = "(?:(?:ok|okay|please|right|alright) )?";
+const POLITE_END = "(?: please)?";
+const bare = (core: string) => new RegExp(`^${POLITE}(?:${core})${POLITE_END}$`);
+const BARE_COMMANDS: [Exclude<Command, null>, RegExp][] = [
+  ["reset", bare("reset(?: the)? interview|start over")],
+  ["end", bare("(?:end|stop|finish)(?: the)? interview")],
+  ["start", bare("(?:start|begin)(?: the)? interview")],
+  ["source", bare("show(?: the)? sources?")],
+];
+
+function parseBare(text: string): Command {
+  const s = text.toLowerCase().replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
+  return BARE_COMMANDS.find(([, re]) => re.test(s))?.[0] ?? null;
+}
+
 const splitLines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
 export default function Home() {
@@ -151,7 +168,7 @@ export default function Home() {
     } else if (modeRef.current === "live") {
       showToast("Already live");
     } else {
-      showToast("Say “Earpiece, reset” first");
+      showToast("Say “start over” first");
     }
   }
 
@@ -200,8 +217,13 @@ export default function Home() {
       setDebug({ text, outcome: cmd ? `matched (${cmd})` : "rejected (wake word, no command word)" });
       return runCommand(cmd);
     }
+    const plain = parseBare(text);
+    if (plain) {
+      setDebug({ text, outcome: `matched (${plain}, no wake word)` });
+      return runCommand(plain);
+    }
     if (fromTypeBox || modeRef.current === "live") return handleFinal(text);
-    setDebug({ text, outcome: "ignored (no wake word)" });
+    setDebug({ text, outcome: "ignored (not a command)" });
   }
 
   useEffect(() => {
@@ -278,17 +300,17 @@ export default function Home() {
           {mode === "standby" && micOn && (
             <p className="flex items-center gap-2 text-lg font-medium">
               <span className="h-3 w-3 animate-pulse rounded-full bg-indigo-500" />
-              Say “Earpiece, start the interview”
+              Say “Start the interview”
             </p>
           )}
           {mode === "live" && (
             <p className="flex items-center gap-2 text-lg font-medium">
               <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
-              Live. Say “Earpiece, end the interview” to finish
+              Live. Say “End the interview” to finish
             </p>
           )}
           {mode === "ended" && (
-            <p className="text-lg font-medium">Interview ended. Say “Earpiece, reset” to start over</p>
+            <p className="text-lg font-medium">Interview ended. Say “Start over” to reset</p>
           )}
           {!micOn && !unsupported && (
             <button
