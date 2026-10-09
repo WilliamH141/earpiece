@@ -67,6 +67,7 @@ export default function Home() {
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [speechMsg, setSpeechMsg] = useState("");
+  const [ended, setEnded] = useState(false);
 
   const nextId = useRef(1);
   const lastFinal = useRef("");
@@ -127,6 +128,20 @@ export default function Home() {
         if (state !== "on") setInterim("");
       },
     );
+  }
+
+  function endInterview() {
+    stopListening.current?.();
+    stopListening.current = null;
+    setInterim("");
+    setEnded(true);
+  }
+
+  function reset() {
+    setLines([]);
+    setTyped("");
+    setEnded(false);
+    lastFinal.current = "";
   }
 
   function submitTyped(e: React.FormEvent) {
@@ -207,8 +222,44 @@ export default function Home() {
           {listening && <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />}
           {listening ? "Stop" : "Start"}
         </button>
+        <button
+          type="button"
+          onClick={endInterview}
+          disabled={lines.length === 0 || ended}
+          className="rounded-full border border-neutral-300 px-6 py-3 text-lg font-medium disabled:opacity-40"
+        >
+          End interview
+        </button>
         {speechMsg && <p className="text-sm text-neutral-600">{speechMsg}</p>}
       </div>
+
+      {ended && (
+        <section aria-label="Summary" className="mb-6 rounded-xl border border-neutral-200 p-4">
+          <h2 className="text-xl font-semibold">Interview summary</h2>
+          <p className="mt-2 text-lg">
+            <span className="font-semibold text-red-600">{lines.filter((l) => l.status === "flag").length}</span>{" "}
+            flagged ·{" "}
+            <span className="font-semibold text-amber-600">{lines.filter((l) => l.status === "caution").length}</span>{" "}
+            caution
+          </p>
+          <p className="mt-1 text-lg">
+            Core questions: {checklist.filter((c) => hit.has(c.id)).length} of {checklist.length}
+          </p>
+          {checklist.some((c) => !hit.has(c.id)) && (
+            <p className="mt-1 text-neutral-600">
+              Missed: {checklist.filter((c) => !hit.has(c.id)).map((c) => c.text).join(", ")}
+            </p>
+          )}
+          <p className="mt-3 text-sm text-neutral-500">Nothing was saved.</p>
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
+          >
+            Reset
+          </button>
+        </section>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <section aria-label="Transcript">
