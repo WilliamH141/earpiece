@@ -28,7 +28,7 @@ eval/shape-check.ts       feeds bad JSON to validate(), shows the fallback
 .env.example              GEMINI_API_KEY=   GEMINI_MODEL=gemini-flash-latest
 ```
 
-`.env.local` must be gitignored before the first commit. Run `git grep AIza` before every push.
+`.env.local` must be gitignored before the first commit. Search the repo for the key prefix before every push.
 
 ## 2. API contract
 
@@ -438,7 +438,7 @@ Done when: typing and saying "do you have any kids" both produce a red card.
 
 **Step 3.** Checklist ticks from `checklist_hits`, the error chip, and `ms` on each transcript line.
 
-**Step 4.** Before deploying: confirm no client code imports `lib/check` or reads `GEMINI_API_KEY`. Run `npm run build`, then confirm `grep -r AIza .next/static` finds nothing. Draft README.md from the outline in my notes.
+**Step 4.** Before deploying: confirm no client code imports `lib/check` or reads `GEMINI_API_KEY`. Run `npm run build`, then search `.next/static` for the key prefix and confirm nothing is found. Draft README.md from the outline in my notes.
 
 **Step 5.** Build `eval/run.ts` and `eval/shape-check.ts` per section 11, with npm scripts `eval` and `eval:shape`.
 
