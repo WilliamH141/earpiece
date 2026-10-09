@@ -57,7 +57,8 @@ const DOT: Record<Status, string> = {
   error: "border border-neutral-400 bg-transparent",
 };
 
-const WAKE = /ear ?piece|ear peace/i;
+// Chrome mishears the wake word, so this is deliberately loose. Matches one word ("earpiece", "airpiece") too.
+const WAKE = /\b(ear|air|here|hear|a|her)\s?-?(piece|peace|peas|pease|pc)\b/i;
 
 // Order matters: "start over" must win over "start".
 function parseCommand(text: string): Command {
@@ -84,6 +85,7 @@ export default function Home() {
   const [speechMsg, setSpeechMsg] = useState("");
   const [toast, setToast] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [debug, setDebug] = useState<{ text: string; outcome: string } | null>(null);
 
   const nextId = useRef(1);
   const lastFinal = useRef("");
@@ -192,8 +194,13 @@ export default function Home() {
 
   // Anything containing the wake word is a command and never reaches /api/check.
   function route(text: string, fromTypeBox = false) {
-    if (WAKE.test(text)) return runCommand(parseCommand(text));
-    if (fromTypeBox || modeRef.current === "live") handleFinal(text);
+    if (WAKE.test(text)) {
+      const cmd = parseCommand(text);
+      setDebug({ text, outcome: cmd ? `matched (${cmd})` : "rejected (wake word, no command word)" });
+      return runCommand(cmd);
+    }
+    if (fromTypeBox || modeRef.current === "live") return handleFinal(text);
+    setDebug({ text, outcome: "ignored (no wake word)" });
   }
 
   useEffect(() => {
@@ -391,7 +398,10 @@ export default function Home() {
             )}
             <div ref={transcriptEnd} />
           </div>
-          <form onSubmit={submitTyped} className="mt-3 flex gap-2">
+          <p className="mt-2 truncate font-mono text-xs text-neutral-400" aria-label="Command debug">
+            {debug ? `last command: ${debug.outcome}: "${debug.text}"` : "last command: none yet"}
+          </p>
+          <form onSubmit={submitTyped} className="mt-2 flex gap-2">
             <input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
