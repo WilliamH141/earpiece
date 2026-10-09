@@ -8,7 +8,7 @@ A live interview coach for NZ small-business hirers. It catches questions that t
 
 ## Links
 
-- Video: [TODO]
+- Video: https://www.loom.com/share/17970cacec1a42579da870023e8f9e5f
 - Live: https://earpiece-rho.vercel.app (use Chrome and allow the mic, or use the type box)
 
 ## Run it
@@ -89,13 +89,17 @@ No Gemini Live, no speaker separation, no accounts or history, no candidate scor
 
 ## Bonus claims
 
+Video timestamps are approximate (from my script). Files are in this repo.
+
 | Claim | Where |
 | --- | --- |
-| Built for hiring | [TODO timestamp or file] |
-| Live | [TODO timestamp or file] |
-| Prove it works | [TODO timestamp or file] |
-| Ship it | [TODO timestamp or file] |
-| Strict shapes | [TODO timestamp or file] |
+| No hands | Video, whole demo ~0:25 to 1:45, voice only, hands in shot |
+| Built for hiring | Video ~0:00 to 0:25 (who and why) and ~0:45 (the moment it saves them time) |
+| Live | Video ~0:30 to 1:40, real-time speech in Chrome (not the Gemini Live API) |
+| Prove it works | Video ~1:45 to 2:35. `eval/cases.json` (30 cases), `eval/run.ts`, scores in `eval/results.md` and the README table |
+| Break it fix it | Video ~1:22, prompt injection still flagged. Also eval case e20 |
+| Ship it | https://earpiece-rho.vercel.app, no login |
+| Strict shapes | `lib/schema.ts` and the bad-output path in `eval/shape-check.ts` |
 
 ## What I didn't write
 
