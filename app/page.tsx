@@ -85,6 +85,7 @@ export default function Home() {
   const [speechMsg, setSpeechMsg] = useState("");
   const [toast, setToast] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [micEvents, setMicEvents] = useState<string[]>([]);
   const [debug, setDebug] = useState<{ text: string; outcome: string } | null>(null);
 
   const nextId = useRef(1);
@@ -227,6 +228,9 @@ export default function Home() {
           );
         }
         if (state !== "on") setInterim("");
+      },
+      (name) => {
+        if (token === micToken.current) setMicEvents((ev) => [...ev, name].slice(-8));
       },
     );
   }
@@ -400,6 +404,9 @@ export default function Home() {
           </div>
           <p className="mt-2 truncate font-mono text-xs text-neutral-400" aria-label="Command debug">
             {debug ? `last command: ${debug.outcome}: "${debug.text}"` : "last command: none yet"}
+          </p>
+          <p className="mt-1 truncate font-mono text-xs text-neutral-400" aria-label="Mic debug">
+            {`mic: ${micEvents.length ? micEvents.join(" > ") : "no events yet"}`}
           </p>
           <form onSubmit={submitTyped} className="mt-2 flex gap-2">
             <input
