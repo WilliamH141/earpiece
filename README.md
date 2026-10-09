@@ -69,7 +69,19 @@ Full Flash measured at about 40s per check on the shared key. Flash-Lite measure
 
 ### Eval results
 
-[TODO: numbers from `eval/results.md`]
+30 labelled utterances (20 should be caught, 10 should pass), written the way Chrome transcribes speech. Run on Flash-Lite.
+
+| Variant | Pass | Caught (of 20) | False alarms (of 10) | Right ground | Median ms |
+| --- | --- | --- | --- | --- | --- |
+| Keyword regex | 24/30 | 17 | 3 | n/a | n/a |
+| Naive prompt | 25/30 | 20 | 3 | 18/20 | 1199 |
+| Full prompt v1 | 28/30 | 20 | 2 | 20/20 | 1100 |
+| Full prompt v2 | 29/30 | 20 | 1 | 20/20 | 1166 |
+| Full prompt v3 | 30/30 | 20 | 0 | 20/20 | 1115 |
+
+v1 to v2: one rule saying skills, training and rostered availability are ok. That fixed two false alarms and broke one case. v2 to v3: one rule saying a statement that asks nothing is ok. That fixed it.
+
+Caveat: v2 and v3 were written after seeing failures on these same 30 cases, so 30/30 is not a held-out score. Full history in `eval/results.md`.
 
 ### Trade-offs and cuts
 
