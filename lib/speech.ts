@@ -22,7 +22,10 @@ export function listen(
     }
     onInterim(interim.trim());
   };
-  rec.onerror = (e: any) => { if (e.error !== "no-speech" && e.error !== "aborted") onState("error", e.error); };
+  rec.onerror = (e: any) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") stopped = true; // don't retry a blocked mic in a loop
+    if (e.error !== "no-speech" && e.error !== "aborted") onState("error", e.error);
+  };
   rec.onend = () => { if (stopped) return onState("off"); try { rec.start(); } catch {} }; // Chrome stops after silence
   rec.start();
   onState("on");

@@ -6,6 +6,8 @@ import { SOURCES, type SourceId } from "@/lib/corpus";
 
 type Verdict = "ok" | "caution" | "flag";
 type Status = "checking" | Verdict | "error";
+type Mode = "standby" | "live" | "ended";
+type Command = "start" | "end" | "source" | "reset" | null;
 type Result = {
   ground: string;
   why: string;
@@ -55,27 +57,60 @@ const DOT: Record<Status, string> = {
   error: "border border-neutral-400 bg-transparent",
 };
 
+const WAKE = /ear ?piece|ear peace/i;
+
+// Order matters: "start over" must win over "start".
+function parseCommand(text: string): Command {
+  const s = text.toLowerCase();
+  if (/\b(reset|start over)\b/.test(s)) return "reset";
+  if (/\b(end|stop|finish)\b/.test(s)) return "end";
+  if (/\b(source|why)\b/.test(s)) return "source";
+  if (/\b(start|begin)\b/.test(s)) return "start";
+  return null;
+}
+
 const splitLines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
 export default function Home() {
-  const [setupOpen, setSetupOpen] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [roleTitle, setRoleTitle] = useState(DEFAULT_ROLE);
   const [reqText, setReqText] = useState(DEFAULT_REQS);
   const [qText, setQText] = useState(DEFAULT_QUESTIONS);
   const [lines, setLines] = useState<Line[]>([]);
   const [typed, setTyped] = useState("");
-  const [listening, setListening] = useState(false);
+  const [mode, setMode] = useState<Mode>("standby");
+  const [micOn, setMicOn] = useState(false);
   const [interim, setInterim] = useState("");
   const [speechMsg, setSpeechMsg] = useState("");
-  const [ended, setEnded] = useState(false);
+  const [toast, setToast] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const nextId = useRef(1);
   const lastFinal = useRef("");
+  const modeRef = useRef<Mode>("standby");
+  const micToken = useRef(0);
   const stopListening = useRef<(() => void) | null>(null);
-  const finalHandler = useRef<(text: string) => void>(() => {});
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalHandler = useRef<(text: string, typed?: boolean) => void>(() => {});
+  const transcriptEnd = useRef<HTMLDivElement>(null);
+  const cardsBox = useRef<HTMLUListElement>(null);
 
   const checklist = splitLines(qText).map((text, i) => ({ id: `q${i + 1}`, text }));
   const hit = new Set(lines.flatMap((l) => l.result?.checklist_hits ?? []));
+  const cards = lines.filter((l) => l.result && l.result.verdict !== "ok").reverse();
+  const missed = checklist.filter((c) => !hit.has(c.id));
+  const unsupported = speechMsg.startsWith("Live mode needs Chrome");
+
+  function changeMode(m: Mode) {
+    modeRef.current = m;
+    setMode(m);
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2500);
+  }
 
   async function handleFinal(text: string) {
     const id = nextId.current++;
@@ -106,184 +141,257 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    finalHandler.current = handleFinal;
-  });
-  useEffect(() => () => stopListening.current?.(), []);
+  function startInterview() {
+    if (modeRef.current === "standby") {
+      changeMode("live");
+      showToast("Interview started");
+    } else if (modeRef.current === "live") {
+      showToast("Already live");
+    } else {
+      showToast("Say “Earpiece, reset” first");
+    }
+  }
 
-  function toggleListening() {
-    if (listening) {
-      stopListening.current?.();
-      stopListening.current = null;
+  function endInterview() {
+    if (modeRef.current === "live") {
+      changeMode("ended");
       setInterim("");
+      showToast("Interview ended");
+    } else {
+      showToast("No interview running");
+    }
+  }
+
+  function showSource() {
+    const newest = cards[0];
+    if (!newest) {
+      showToast("No card to show a source for");
       return;
     }
-    setSpeechMsg("");
+    setExpandedId(newest.id);
+    showToast("Showing source");
+  }
+
+  function resetAll() {
+    setLines([]);
+    setTyped("");
+    setExpandedId(null);
+    setInterim("");
+    lastFinal.current = "";
+    changeMode("standby");
+    showToast("Reset");
+  }
+
+  function runCommand(cmd: Command) {
+    if (cmd === "start") startInterview();
+    else if (cmd === "end") endInterview();
+    else if (cmd === "source") showSource();
+    else if (cmd === "reset") resetAll();
+    else showToast("Command not recognised");
+  }
+
+  // Anything containing the wake word is a command and never reaches /api/check.
+  function route(text: string, fromTypeBox = false) {
+    if (WAKE.test(text)) return runCommand(parseCommand(text));
+    if (fromTypeBox || modeRef.current === "live") handleFinal(text);
+  }
+
+  useEffect(() => {
+    finalHandler.current = route;
+  });
+
+  function startMic() {
+    stopListening.current?.();
+    const token = ++micToken.current;
     stopListening.current = listen(
       (t) => finalHandler.current(t),
-      setInterim,
+      (t) => {
+        if (token === micToken.current) setInterim(t);
+      },
       (state, msg) => {
-        setListening(state === "on");
-        if (state === "error") setSpeechMsg(msg ?? "Microphone problem.");
+        if (token !== micToken.current) return;
+        setMicOn(state === "on");
+        if (state === "on") setSpeechMsg("");
+        if (state === "error") {
+          setSpeechMsg(
+            msg === "not-allowed" || msg === "service-not-allowed"
+              ? "Mic is blocked. Click Enable mic and allow access."
+              : (msg ?? "Microphone problem."),
+          );
+        }
         if (state !== "on") setInterim("");
       },
     );
   }
 
-  function endInterview() {
-    stopListening.current?.();
-    stopListening.current = null;
-    setInterim("");
-    setEnded(true);
-  }
+  useEffect(() => {
+    const token = micToken;
+    startMic();
+    return () => {
+      token.current++;
+      stopListening.current?.();
+      stopListening.current = null;
+    };
+  }, []);
 
-  function reset() {
-    setLines([]);
-    setTyped("");
-    setEnded(false);
-    lastFinal.current = "";
-  }
+  useEffect(() => {
+    transcriptEnd.current?.scrollIntoView({ block: "nearest" });
+  }, [lines, interim]);
+
+  useEffect(() => {
+    cardsBox.current?.scrollTo({ top: 0 });
+  }, [cards.length]);
 
   function submitTyped(e: React.FormEvent) {
     e.preventDefault();
     const t = typed.trim();
     if (!t) return;
     setTyped("");
-    handleFinal(t);
+    route(t, true);
   }
 
-  const cards = lines
-    .filter((l) => l.result && l.result.verdict !== "ok")
-    .reverse();
+  const flagCount = lines.filter((l) => l.status === "flag").length;
+  const cautionCount = lines.filter((l) => l.status === "caution").length;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight text-indigo-600">Earpiece</h1>
-        <p className="text-neutral-600">
-          Coaches the interviewer. Never scores the candidate. Nothing is saved.
-        </p>
+    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-4 py-3 md:h-screen md:overflow-hidden sm:px-6">
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div>
+          <h1 className="text-2xl font-semibold leading-tight tracking-tight text-indigo-600">Earpiece</h1>
+          <p className="text-sm text-neutral-600">
+            Coaches the interviewer. Never scores the candidate. Nothing is saved.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {mode === "standby" && micOn && (
+            <p className="flex items-center gap-2 text-lg font-medium">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-indigo-500" />
+              Say “Earpiece, start the interview”
+            </p>
+          )}
+          {mode === "live" && (
+            <p className="flex items-center gap-2 text-lg font-medium">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+              Live. Say “Earpiece, end the interview” to finish
+            </p>
+          )}
+          {mode === "ended" && (
+            <p className="text-lg font-medium">Interview ended. Say “Earpiece, reset” to start over</p>
+          )}
+          {!micOn && !unsupported && (
+            <button
+              type="button"
+              onClick={startMic}
+              className="rounded-full bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700"
+            >
+              Enable mic
+            </button>
+          )}
+          {speechMsg && <p className="text-sm text-neutral-600">{speechMsg}</p>}
+
+          {mode === "standby" && (
+            <button
+              type="button"
+              onClick={startInterview}
+              className="rounded-full border border-neutral-300 px-5 py-2 font-medium hover:bg-neutral-50"
+            >
+              Start interview
+            </button>
+          )}
+          {mode === "live" && (
+            <button
+              type="button"
+              onClick={endInterview}
+              className="rounded-full bg-neutral-800 px-5 py-2 font-medium text-white hover:bg-neutral-900"
+            >
+              End interview
+            </button>
+          )}
+          {mode === "ended" && (
+            <button
+              type="button"
+              onClick={resetAll}
+              className="rounded-full bg-indigo-600 px-5 py-2 font-medium text-white hover:bg-indigo-700"
+            >
+              Reset
+            </button>
+          )}
+        </div>
       </header>
 
-      <section className="mb-6 rounded-xl border border-neutral-200">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-600">
+        <p>Before we start: I use a tool that checks my questions are fair. It doesn&apos;t record you.</p>
         <button
           type="button"
           onClick={() => setSetupOpen((o) => !o)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left font-medium"
+          className="rounded-lg border border-neutral-200 px-3 py-1 hover:bg-neutral-50"
           aria-expanded={setupOpen}
         >
-          Setup: {roleTitle || "Untitled role"}
-          <span className="text-neutral-400">{setupOpen ? "Hide" : "Show"}</span>
+          Setup: {roleTitle || "Untitled role"} · {setupOpen ? "Hide" : "Show"}
         </button>
-        {setupOpen && (
-          <div className="grid gap-4 border-t border-neutral-200 p-4 sm:grid-cols-3">
-            <label className="block text-sm font-medium">
-              Role title
-              <input
-                value={roleTitle}
-                onChange={(e) => setRoleTitle(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal"
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Requirements (one per line)
-              <textarea
-                value={reqText}
-                onChange={(e) => setReqText(e.target.value)}
-                rows={5}
-                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal"
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Core questions (one per line)
-              <textarea
-                value={qText}
-                onChange={(e) => setQText(e.target.value)}
-                rows={5}
-                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 font-normal"
-              />
-            </label>
-          </div>
-        )}
-      </section>
-
-      <p className="mb-3 text-sm text-neutral-600">
-        Before we start: I use a tool that checks my questions are fair. It doesn&apos;t record you.
-      </p>
-
-      <div className="mb-6 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={toggleListening}
-          className={`flex items-center gap-3 rounded-full px-6 py-3 text-lg font-medium text-white ${
-            listening ? "bg-neutral-800 hover:bg-neutral-900" : "bg-indigo-600 hover:bg-indigo-700"
-          }`}
-        >
-          {listening && <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />}
-          {listening ? "Stop" : "Start"}
-        </button>
-        <button
-          type="button"
-          onClick={endInterview}
-          disabled={lines.length === 0 || ended}
-          className="rounded-full border border-neutral-300 px-6 py-3 text-lg font-medium disabled:opacity-40"
-        >
-          End interview
-        </button>
-        {speechMsg && <p className="text-sm text-neutral-600">{speechMsg}</p>}
       </div>
 
-      {ended && (
-        <section aria-label="Summary" className="mb-6 rounded-xl border border-neutral-200 p-4">
-          <h2 className="text-xl font-semibold">Interview summary</h2>
-          <p className="mt-2 text-lg">
-            <span className="font-semibold text-red-600">{lines.filter((l) => l.status === "flag").length}</span>{" "}
-            flagged ·{" "}
-            <span className="font-semibold text-amber-600">{lines.filter((l) => l.status === "caution").length}</span>{" "}
-            caution
-          </p>
-          <p className="mt-1 text-lg">
-            Core questions: {checklist.filter((c) => hit.has(c.id)).length} of {checklist.length}
-          </p>
-          {checklist.some((c) => !hit.has(c.id)) && (
-            <p className="mt-1 text-neutral-600">
-              Missed: {checklist.filter((c) => !hit.has(c.id)).map((c) => c.text).join(", ")}
-            </p>
-          )}
-          <p className="mt-3 text-sm text-neutral-500">Nothing was saved.</p>
-          <button
-            type="button"
-            onClick={reset}
-            className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
-          >
-            Reset
-          </button>
+      {setupOpen && (
+        <section className="grid gap-3 rounded-xl border border-neutral-200 p-3 sm:grid-cols-3">
+          <label className="block text-sm font-medium">
+            Role title
+            <input
+              value={roleTitle}
+              onChange={(e) => setRoleTitle(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Requirements (one per line)
+            <textarea
+              value={reqText}
+              onChange={(e) => setReqText(e.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Core questions (one per line)
+            <textarea
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-1.5 font-normal"
+            />
+          </label>
         </section>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <section aria-label="Transcript">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Transcript
-          </h2>
-          <ul className="space-y-2">
-            {lines.map((l) => (
-              <li key={l.id} className="flex items-start gap-3 text-lg">
-                <span className={`mt-2.5 h-3 w-3 shrink-0 rounded-full ${DOT[l.status]}`} />
-                <span className="flex-1">
-                  {l.text}
-                  {l.status === "error" && (
-                    <span className="ml-2 inline-block rounded-full bg-neutral-100 px-3 py-0.5 align-middle text-sm text-neutral-500">
-                      Couldn&apos;t check that one
-                    </span>
-                  )}
-                </span>
-                {l.ms != null && <span className="mt-1.5 text-xs text-neutral-400">{l.ms} ms</span>}
-              </li>
-            ))}
-          </ul>
-          {interim && <p className="mt-2 text-lg italic text-neutral-400">{interim}</p>}
-          <form onSubmit={submitTyped} className="mt-4 flex gap-2">
+      <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-2">
+        <section aria-label="Transcript" className="flex min-h-0 flex-col">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Transcript</h2>
+          <div className="min-h-[200px] flex-1 overflow-y-auto md:min-h-0">
+            <ul className="space-y-2">
+              {lines.map((l) => (
+                <li key={l.id} className="flex items-start gap-3 text-lg">
+                  <span className={`mt-2.5 h-3 w-3 shrink-0 rounded-full ${DOT[l.status]}`} />
+                  <span className="flex-1">
+                    {l.text}
+                    {l.status === "error" && (
+                      <span className="ml-2 inline-block rounded-full bg-neutral-100 px-3 py-0.5 align-middle text-sm text-neutral-500">
+                        Couldn&apos;t check that one
+                      </span>
+                    )}
+                  </span>
+                  {l.ms != null && <span className="mt-1.5 text-xs text-neutral-400">{l.ms} ms</span>}
+                </li>
+              ))}
+            </ul>
+            {interim && (
+              <p className="mt-2 text-lg italic text-neutral-400">
+                {mode === "standby" ? "Heard: " : ""}
+                {interim}
+              </p>
+            )}
+            <div ref={transcriptEnd} />
+          </div>
+          <form onSubmit={submitTyped} className="mt-3 flex gap-2">
             <input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
@@ -299,77 +407,107 @@ export default function Home() {
           </form>
         </section>
 
-        <section aria-label="Coaching cards">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Coaching
-          </h2>
-          <ul className="space-y-3">
-            {cards.map((l) => {
-              const r = l.result!;
-              const src = SOURCES[r.source_id as SourceId];
-              return (
-                <li
-                  key={l.id}
-                  className={`rounded-xl border-2 p-4 ${
-                    r.verdict === "flag" ? "border-red-500" : "border-amber-500"
-                  }`}
-                >
-                  <p
-                    className={`text-sm font-semibold uppercase tracking-wide ${
-                      r.verdict === "flag" ? "text-red-600" : "text-amber-600"
+        <section aria-label="Coaching" className="flex min-h-0 flex-col gap-3">
+          {mode === "ended" && (
+            <div aria-label="Summary" className="rounded-xl border border-neutral-200 p-3">
+              <h2 className="text-lg font-semibold">Interview summary</h2>
+              <p className="mt-1 text-lg">
+                <span className="font-semibold text-red-600">{flagCount}</span> flagged ·{" "}
+                <span className="font-semibold text-amber-600">{cautionCount}</span> caution
+              </p>
+              <p>
+                Core questions: {checklist.length - missed.length} of {checklist.length}
+              </p>
+              {missed.length > 0 && (
+                <p className="text-sm text-neutral-600">Missed: {missed.map((c) => c.text).join(", ")}</p>
+              )}
+              <p className="mt-1 text-sm text-neutral-500">Nothing was saved.</p>
+            </div>
+          )}
+
+          <div className="flex min-h-[160px] flex-1 flex-col md:min-h-0">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Coaching</h2>
+            <ul ref={cardsBox} className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+              {cards.map((l) => {
+                const r = l.result!;
+                const src = SOURCES[r.source_id as SourceId];
+                return (
+                  <li
+                    key={l.id}
+                    className={`rounded-xl border-2 p-4 ${r.verdict === "flag" ? "border-red-500" : "border-amber-500"}`}
+                  >
+                    <p
+                      className={`text-sm font-semibold uppercase tracking-wide ${
+                        r.verdict === "flag" ? "text-red-600" : "text-amber-600"
+                      }`}
+                    >
+                      {GROUND_LABELS[r.ground] ?? r.ground}
+                    </p>
+                    <p className="mt-1 text-neutral-500">&ldquo;{l.text}&rdquo;</p>
+                    <p className="mt-1">{r.why}</p>
+                    {r.rephrase && (
+                      <p className="mt-2 text-sm font-medium text-neutral-500">
+                        Try instead:
+                        <span className="mt-1 block text-2xl font-semibold leading-snug text-neutral-900">
+                          {r.rephrase}
+                        </span>
+                      </p>
+                    )}
+                    {src && (
+                      <a
+                        href={src.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-sm text-indigo-600 underline"
+                      >
+                        {src.title}
+                      </a>
+                    )}
+                    {src && expandedId === l.id && (
+                      <div className="mt-2 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
+                        <p className="font-medium">{src.title}</p>
+                        <p className="mt-1">{src.summary}</p>
+                        <p className="mt-1 break-all text-neutral-500">{src.url}</p>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-500">Core questions</h2>
+            <ul className="space-y-1">
+              {checklist.map((c) => (
+                <li key={c.id} className="flex items-center gap-2">
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                      hit.has(c.id) ? "border-indigo-600 bg-indigo-600 text-white" : "border-neutral-300"
                     }`}
                   >
-                    {GROUND_LABELS[r.ground] ?? r.ground}
-                  </p>
-                  <p className="mt-1 text-neutral-500">&ldquo;{l.text}&rdquo;</p>
-                  <p className="mt-2">{r.why}</p>
-                  {r.rephrase && (
-                    <p className="mt-3 text-sm font-medium text-neutral-500">
-                      Try instead:
-                      <span className="mt-1 block text-2xl font-semibold leading-snug text-neutral-900">
-                        {r.rephrase}
-                      </span>
-                    </p>
-                  )}
-                  {src && (
-                    <a
-                      href={src.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-block text-sm text-indigo-600 underline"
-                    >
-                      {src.title}
-                    </a>
-                  )}
+                    {hit.has(c.id) ? "✓" : ""}
+                  </span>
+                  <span className={hit.has(c.id) ? "text-neutral-400 line-through" : ""}>{c.text}</span>
                 </li>
-              );
-            })}
-          </ul>
-          <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Core questions
-          </h2>
-          <ul className="space-y-1">
-            {checklist.map((c) => (
-              <li key={c.id} className="flex items-center gap-2">
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
-                    hit.has(c.id)
-                      ? "border-indigo-600 bg-indigo-600 text-white"
-                      : "border-neutral-300"
-                  }`}
-                >
-                  {hit.has(c.id) ? "✓" : ""}
-                </span>
-                <span className={hit.has(c.id) ? "text-neutral-400 line-through" : ""}>{c.text}</span>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
 
-      <footer className="mt-10 border-t border-neutral-200 pt-4 text-sm text-neutral-500">
+      <footer className="border-t border-neutral-200 pt-2 text-sm text-neutral-500">
         Not legal advice. Sources: HRC A-Z Pre-Employment Guide, Employment NZ.
       </footer>
+
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-neutral-900 px-5 py-2 text-white shadow-lg"
+        >
+          {toast}
+        </div>
+      )}
     </main>
   );
 }
